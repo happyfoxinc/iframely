@@ -364,18 +364,10 @@ export default function(app) {
                         });
     
                         if (!render_link) {
-    
-                            if (oembed.html) {
-                                // Check if oembed has html
-                                render_link = {
-                                    html: oembed.html
-                                };
-                            } else {
-                                // Generate a default html based on oembed data
-                                render_link = {
-                                    html: iframelyUtils.generateDefaultHtmlFromMeta(oembed)
-                                };
-                            }
+
+                            render_link = {
+                                html: oembed.html || iframelyUtils.generateDefaultHtmlFromMeta(oembed)
+                            };
                         }
     
                         if (render_link) {
