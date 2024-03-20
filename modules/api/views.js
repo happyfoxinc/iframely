@@ -96,14 +96,18 @@ function handleIframelyError(error, res, next) {
     }
 }
 
-function processInitialErrors(uri, next) {
+function processInitialErrors(uri, next, canThrowError = true) {
     if (!uri) {
-        next(new utils.HttpError(400, "'uri' get param expected"));
+        if (canThrowError) {
+            next(new utils.HttpError(400, "'uri' get param expected"));
+        }
         return true;
     }
 
     if (!CONFIG.DEBUG && uri.split('/')[2].indexOf('.') === -1) {
-        next(new utils.HttpError(400, "local domains not supported"));
+        if (canThrowError) {
+            next(new utils.HttpError(400, "local domains not supported"));
+        }
         return true;
     }
 }
@@ -311,19 +315,23 @@ export default function(app) {
     app.get('/render', function(req, res, next) {
 
         var uri = prepareUri(req.query.uri || req.query.url);
-
-        if (processInitialErrors(uri, next)) {
+    
+        if (processInitialErrors(uri, next, true)) {
+            res.renderCached('embed-html.ejs', {
+                title: 'Error',
+                html: iframelyUtils.generateErrorHtml('Unable to render the media')
+            });
             return;
         }
-
+    
         log(req, 'Loading /render for', uri);
-
+    
         async.waterfall([
-
+    
             function(cb) {
-
+    
                 cache.withCache(getRenderLinkCacheKey(uri, req), function(cb) {
-
+    
                     iframelyCore.run(uri, {
                         v: '1.3',
                         getWhitelistRecord: whitelist.findWhitelistRecordFor,
@@ -333,13 +341,13 @@ export default function(app) {
                         if (error) {
                             return cb(error);
                         }
-
+    
                         var render_link = result && _.find(result.links, function(link) {
                             return link.html
                                 && link.rel.indexOf(CONFIG.R.inline) === -1
                                 && link.type === CONFIG.T.text_html;
                         });
-
+    
                         if (!render_link) {
                             // Cache non inline link to later render for older consumers.
                             render_link = _.find(result.links, function(link) {
@@ -348,32 +356,56 @@ export default function(app) {
                                     && link.type === CONFIG.T.text_html;
                             });
                         }
-
+    
+                        var oembed = oembedUtils.getOembed(uri, result, {
+                            mediaPriority: getBooleanParam(req, 'media'),
+                            omit_css: getBooleanParam(req, 'omit_css'),
+                            targetWidthForResponsive: getIntParam(req, 'width')
+                        });
+    
+                        if (!render_link) {
+    
+                            if (oembed.html) {
+                                // Check if oembed has html
+                                render_link = {
+                                    html: oembed.html
+                                };
+                            } else {
+                                // Generate a default html based on oembed data
+                                render_link = {
+                                    html: iframelyUtils.generateDefaultHtmlFromMeta(oembed)
+                                };
+                            }
+                        }
+    
                         if (render_link) {
                             render_link.title = result.meta.title;
                         }
-
+    
                         cb(error, render_link);
                     });
-
+    
                 }, cb);
             }
-
+    
         ], function(error, link) {
             if (error) {
-                return handleIframelyError(error, res, next);
+                res.renderCached('embed-html.ejs', {
+                    title: 'Error',
+                    html: iframelyUtils.generateErrorHtml('Unable to render the media')
+                });
             }
-
-            if (!link) {
-                return next(new utils.NotFound('No render available'));
-            }
-
+    
+            // if (!link) {
+            //     return next(new utils.NotFound('No render available'));
+            // }
+    
             res.renderCached('embed-html.ejs', {
                 title: link.title,
                 html: link.html
             });
         });
-
+    
     });
 
     app.get('/supported-plugins-re.json', function(req, res, next) {
@@ -479,6 +511,56 @@ export default function(app) {
 
             //iframely.disposeObject(result);
         });
+    });
+
+    app.get('/render-html', function(req, res, next) {
+        var uri = prepareUri(req.query.uri || req.query.url);
+    
+        if (processInitialErrors(uri, next)) {
+            return;
+        }
+    
+        log(req, 'Loading /render-html for', uri);
+    
+        async.waterfall([
+    
+            function(cb) {
+    
+                cache.withCache(getRenderLinkCacheKey(uri, req), function(cb) {
+    
+                    iframelyCore.run(uri, {
+                        v: '1.3',
+                        getWhitelistRecord: whitelist.findWhitelistRecordFor,
+                        providerOptions: getProviderOptionsFromQuery(req.query)
+                    }, function(error, result) {
+                        if (error) {
+                            return cb(error);
+                        }
+
+                        const oembed = oembedUtils.getOembed(uri, result, {
+                            mediaPriority: getBooleanParam(req, 'media'),
+                            omit_css: getBooleanParam(req, 'omit_css'),
+                            targetWidthForResponsive: getIntParam(req, 'width')
+                        });
+                        
+                        const renderHtml = iframelyUtils.getMediaEmbedWrapperHtml(oembed);
+
+                        cb(error, renderHtml);
+                    });
+    
+                }, cb);
+            }
+    
+        ], function(error, renderHtml) {
+            if (error) {
+                return handleIframelyError(error, res, next);
+            }
+    
+            res.jsonpCached({
+                html: renderHtml
+            })
+        });
+    
     });
 
 };
