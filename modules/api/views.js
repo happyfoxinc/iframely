@@ -543,22 +543,23 @@ export default function(app) {
                             targetWidthForResponsive: getIntParam(req, 'width')
                         });
                         
-                        const renderHtml = iframelyUtils.getMediaEmbedWrapperHtml(oembed);
+                        const data = {
+                            html: iframelyUtils.getMediaEmbedWrapperHtml(oembed),
+                            url: oembed.url
+                        };
 
-                        cb(error, renderHtml);
+                        cb(error, data);
                     });
     
                 }, cb);
             }
     
-        ], function(error, renderHtml) {
+        ], function(error, data) {
             if (error) {
                 return handleIframelyError(error, res, next);
             }
     
-            res.jsonpCached({
-                html: renderHtml
-            })
+            res.jsonpCached(data)
         });
     
     });
