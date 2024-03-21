@@ -365,9 +365,20 @@ export default function(app) {
     
                         if (!render_link) {
 
-                            render_link = {
-                                html: oembed.html || iframelyUtils.generateDefaultHtmlFromMeta(oembed)
-                            };
+                            if (oembed.html){
+
+                                render_link = {
+                                    html: oembed.html
+                                };
+                            } else if(!!oembed.title){
+
+                                render_link = {
+                                    html: iframelyUtils.generateDefaultHtmlFromMeta(oembed)
+                                };
+                            } else{
+                                return cb(new Error('Unable to render the media'));
+                            }
+
                         }
     
                         if (render_link) {
@@ -534,6 +545,10 @@ export default function(app) {
                             omit_css: getBooleanParam(req, 'omit_css'),
                             targetWidthForResponsive: getIntParam(req, 'width')
                         });
+
+                        if(!oembed.title){
+                            return cb(new Error('Unable to render the media'));
+                        }
                         
                         const data = {
                             html: iframelyUtils.getMediaEmbedWrapperHtml(oembed),
