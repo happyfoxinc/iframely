@@ -330,7 +330,13 @@ export default {
 
         // And this is AWS metadata service
         // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
-        /^https?:\/\/169\.254\.169\.254/
+        /^https?:\/\/169\.254\.169\.254/,
+
+        // We dont support these domains as they require tokens
+        /^https?:\/\/(?:www\.)?instagram\.com/i,
+        /^https?:\/\/(?:www\.)?facebook\.com/i,
+        /^https?:\/\/(?:www\.)?google\.com\/maps/i,
+        /^https?:\/\/(?:maps\.)?google\.com/i,
     ],
 
     // Endpoint for prerender service, if you need it. Used to parse React apps. Very slow.
